@@ -74,7 +74,6 @@ export default function Home() {
       const ctx = canvas.current?.getContext("2d");
       const estado = personaje.estado(estadoPersonaje);
       personaje.frameY = estado?.posicion || 0;
-      console.log("hola");
       const animacion = (tiempo: number) => {
         if (ctx) {
           ctx.clearRect(0, 0, dimensiones.ancho, dimensiones.alto);
@@ -92,13 +91,13 @@ export default function Home() {
         //   else objetosJuego[0].frameX = 0;
         // }
         contaFrames++;
-        let ultimoTiempo = requestAnimationFrame(animacion);
+        let Id = requestAnimationFrame(animacion);
       };
       animacion(0);
     }
 
     return () => {};
-  }, [personaje, estadoPersonaje, dimensiones.alto, dimensiones.ancho]);
+  }, [personaje, estadoPersonaje, dimensiones.ancho, dimensiones.alto]);
 
   return (
     <main className="container flex flex-col h-screen min-h-screen bg-slate-900">
