@@ -1,128 +1,516 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { ObjetoJuego, TObjetoJuegoSprite } from "./objetoJuego";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { Juego, TParametrosJuego, TParametrosJugador } from "./juego";
+import { Tecla } from "./inputHanlder";
 
 export type TDimensiones = {
   ancho: number;
   alto: number;
 };
 
-const anchoSprites = 575;
-const altoSprites = 523;
-const animacionSprites: TObjetoJuegoSprite[] = [
-  { nombre: "reposo", posicion: 0, frames: 7 },
-  { nombre: "inicio-salto", posicion: 1, frames: 7 },
-  { nombre: "caida-salto", posicion: 2, frames: 7 },
-  { nombre: "correr", posicion: 3, frames: 9 },
-  { nombre: "mareado", posicion: 4, frames: 9 },
-  { nombre: "sentado", posicion: 5, frames: 5 },
-  { nombre: "rollo", posicion: 6, frames: 7 },
-  { nombre: "mordida", posicion: 7, frames: 7 },
-  { nombre: "muerto", posicion: 8, frames: 12 },
-  { nombre: "golpeado", posicion: 9, frames: 4 },
-];
-
 export default function Home() {
-  const canvas = useRef<HTMLCanvasElement | null>(null);
-  const [personaje, setPersonaje] = useState<ObjetoJuego | null>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const canvasColision = useRef<HTMLCanvasElement>(null);
+  const canvasDebug = useRef<HTMLCanvasElement>(null);
   const [dimensiones, setDimensiones] = useState<TDimensiones>({
     ancho: 0,
     alto: 0,
   });
 
-  const [estadoPersonaje, setEstadoPersonaje] = useState("");
+  const [juego, setJuego] = useState<Juego | null>(null);
+  const [parametrosJuego, setParametrosJuego] = useState<TParametrosJuego>({
+    FPS: 30,
+    velocidadJuego: 0,
+  });
+  const [parametrosJugador, setParametrosJugador] =
+    useState<TParametrosJugador>({
+      estado: "",
+      velocidadX: 10,
+      velocidadY: 30,
+      velocidadRX: 15,
+      caidaGolpe: 35,
+      velocidadFS: 10,
+      velocidadFC: 10,
+      velocidadFR: 10,
+      velocidadFG: 10,
+      peso: 2,
+      framesLimite: 1,
+    });
+
+  const Id = useRef<number>(0);
 
   useEffect(() => {
-    if (canvas.current) {
-      resizeCanvasToDisplaySize(canvas.current);
-      const ancho = canvas.current?.width;
-      const alto = canvas.current?.height;
-      setDimensiones({ ancho: ancho, alto: alto });
-    }
+    const redimensionarVentana = () => {
+      if (canvas.current && canvasColision.current && canvasDebug.current) {
+        resizeCanvasToDisplaySize(canvas.current);
+        resizeCanvasToDisplaySize(canvasColision.current);
+        resizeCanvasToDisplaySize(canvasDebug.current);
+      }
+    };
+
+    redimensionarVentana();
+
     return () => {};
   }, []);
 
   useEffect(() => {
-    if (dimensiones.ancho != 0 && dimensiones.alto != 0) {
-      const imagen = document.createElement("img");
-      imagen.src = "shadow_dog.png";
-      let objetoJuego = new ObjetoJuego(
-        dimensiones.ancho * 0.5,
-        dimensiones.alto * 0.5,
-        30,
-        imagen,
-        anchoSprites,
-        altoSprites,
-        anchoSprites,
-        altoSprites,
-        30,
-        0,
-        0,
-        animacionSprites
-      );
-      setPersonaje(objetoJuego);
-      setEstadoPersonaje(animacionSprites[0].nombre);
+    if (canvas.current && canvasDebug.current && canvasColision.current) {
+      const ctx: CanvasRenderingContext2D | null =
+        canvas.current.getContext("2d");
+      const ctxColision: CanvasRenderingContext2D | null =
+        canvasColision.current.getContext("2d", {
+          willReadFrequently: true,
+        });
+      const ctxDebug: CanvasRenderingContext2D | null =
+        canvasDebug.current.getContext("2d");
+
+      if (ctx && ctxDebug && ctxColision) {
+        setJuego(
+          new Juego(
+            ctx,
+            ctxDebug,
+            ctxColision,
+            canvas.current.width,
+            canvas.current.height,
+            { ...parametrosJuego },
+            { ...parametrosJugador },
+            [5, 6, 4, 10, 6],
+            canvas.current.getBoundingClientRect()
+          )
+        );
+      }
     }
-  }, [dimensiones]);
+    return () => {};
+  }, []);
+
+  const reiniciar = (e: KeyboardEvent) => {
+    if (e.key === Tecla.REINICIAR && juego?.gameOver) {
+      setJuego((prevState) => {
+        if (prevState) {
+          return new Juego(
+            prevState.ctx,
+            prevState.ctxDebug,
+            prevState.ctxColision,
+            prevState.ancho,
+            prevState.alto,
+            { ...prevState.parametrosJuego },
+            { ...prevState.parametrosJugador },
+            prevState.maxEnemigos,
+            prevState.posicionCanvas
+          );
+        }
+        return prevState;
+      });
+
+      console.log("REINICIO");
+    }
+  };
 
   useEffect(() => {
-    if (personaje) {
-      const objetosJuego: ObjetoJuego[] = [];
-      const maxPersonajes = 10;
-      const framesJuego = 10;
-      let contaFrames = 0;
-      const ctx = canvas.current?.getContext("2d");
-      const estado = personaje.estado(estadoPersonaje);
-      personaje.frameY = estado?.posicion || 0;
+    console.log("Entra Renderizado");
+
+    if (juego && !juego?.gameOver) {
+      juego.limpiar();
+      setParametrosJuego({ ...juego.parametrosJuego });
+      setParametrosJugador({ ...juego.parametrosJugador });
+      window.addEventListener("keydown", juego.entrada.capturarEntrada);
+      window.addEventListener("keyup", juego.entrada.capturarSalida);
+      window.addEventListener("click", juego.crearClickCuervo);
+      window.addEventListener("keydown", reiniciar);
+
+      let ultimoTiempo: number = 0;
       const animacion = (tiempo: number) => {
-        if (ctx) {
-          ctx.clearRect(0, 0, dimensiones.ancho, dimensiones.alto);
-          if (personaje.sprites.length > 0) {
-            if (estado && estado.frames > 0)
-              personaje.frameX =
-                Math.floor(contaFrames / framesJuego) % estado.frames;
-            personaje.dibujar(ctx, true);
-          }
-        } else {
+        // const ahora = window.performance.now();
+        // const deltaTiempo = ahora - ultimoTiempo;
+        // console.log("t " + tiempo);
+        const deltaTiempo = tiempo - ultimoTiempo;
+        //console.log("delta: " + deltaTiempo);
+
+        ultimoTiempo = tiempo;
+        // if (deltaTiempo < juego.intervalo) return;
+        juego.renderizar(deltaTiempo, false);
+
+        if (!juego.gameOver) {
+          Id.current = requestAnimationFrame(animacion);
         }
-        // if (contaFrames % framesJuego == 0) {
-        //   if (objetosJuego[0].frameX < objetosJuego[0].maxFrames)
-        //     objetosJuego[0].frameX++;
-        //   else objetosJuego[0].frameX = 0;
-        // }
-        contaFrames++;
-        let Id = requestAnimationFrame(animacion);
       };
+
+      console.log("Inicio Animación. Rederizando.");
       animacion(0);
     }
 
-    return () => {};
-  }, [personaje, estadoPersonaje, dimensiones.ancho, dimensiones.alto]);
+    return () => {
+      if (juego?.gameOver) {
+        if (Id.current) cancelAnimationFrame(Id.current);
+        console.log("Id " + Id.current);
+        window.removeEventListener("keydown", juego.entrada.capturarEntrada);
+        window.removeEventListener("keyup", juego.entrada.capturarSalida);
+        window.removeEventListener("click", juego.crearClickCuervo);
+        window.removeEventListener("keydown", reiniciar);
+      }
+    };
+  }, [juego]);
+
+  const compararParametros = (
+    parametros: TParametrosJuego | TParametrosJugador,
+    parametrosComparacion: TParametrosJuego | TParametrosJugador
+  ) => {
+    for (const parametro of Object.keys(parametros)) {
+      if (parametrosComparacion[parametro] != parametros[parametro]) {
+        return true;
+      }
+      return false;
+    }
+  };
+
+  // parametrosJugador.peso != juego.parametrosJugador.peso ||
+  //       parametrosJugador.framesLimite !=
+  //         juego.parametrosJugador.framesLimite ||
+  //       parametrosJugador.velocidadX != juego.parametrosJugador.velocidadX ||
+  //       parametrosJugador.velocidadY != juego.parametrosJugador.velocidadY ||
+  //       parametrosJugador.velocidadRX != juego.parametrosJugador.velocidadRX ||
+  //       parametrosJugador.velocidadFS != juego.parametrosJugador.velocidadFS ||
+  //       parametrosJugador.velocidadFC != juego.parametrosJugador.velocidadFC ||
+  //       parametrosJugador.velocidadFR != juego.parametrosJugador.velocidadFR ||
+  //       parametrosJugador.velocidadFG != juego.parametrosJugador.velocidadFG ||
+  //       parametrosJugador.caidaGolpe != juego.parametrosJugador.caidaGolpe
+
+  useEffect(() => {
+    console.log("Entra a Propiedades Jugador.");
+    if (juego) {
+      if (compararParametros(parametrosJugador, juego.parametrosJugador)) {
+        setJuego((prevState) => {
+          if (prevState) {
+            prevState.parametrosJugador = { ...parametrosJugador };
+            if (prevState.jugador) {
+              prevState.jugador.peso = juego.parametrosJugador.peso;
+              prevState.jugador.framesLimite =
+                juego.parametrosJugador.framesLimite;
+            }
+          }
+          return prevState;
+        });
+        console.log("Jugador Modificado: ");
+        console.log(juego);
+      }
+    }
+  }, [parametrosJugador]);
+
+  useEffect(() => {
+    console.log("Entra a Propiedades Juego.");
+    if (juego) {
+      if (compararParametros(parametrosJuego, juego.parametrosJuego)) {
+        setJuego((prevState) => {
+          if (prevState) {
+            prevState.parametrosJuego = { ...parametrosJuego };
+            prevState.actualizarIntervalo();
+          }
+          return prevState;
+        });
+        console.log("Juego Modificado: ");
+        console.log(juego);
+      }
+    }
+  }, [parametrosJuego]);
+
+  const onChangeJugador = (
+    e: ChangeEvent<HTMLSelectElement | HTMLInputElement>
+  ) => {
+    setParametrosJugador({
+      ...parametrosJugador,
+      [e.target.name]:
+        e.target.type === "range" ? parseInt(e.target.value) : e.target.value,
+    });
+  };
+
+  const onChangeJuego = (
+    e: ChangeEvent<HTMLSelectElement | HTMLInputElement>
+  ) => {
+    setParametrosJuego({
+      ...parametrosJuego,
+      [e.target.name]:
+        e.target.type === "range" ? parseInt(e.target.value) : e.target.value,
+    });
+  };
 
   return (
-    <main className="container flex flex-col h-screen min-h-screen bg-slate-900">
-      <header className="container flex h-24 min-h-24 bg-emerald-500"></header>
-      <main className="grow container flex flex-row">
-        <aside className="flex flex-col justify-center align-middle w-1/5  bg-green-100 px-8">
-          <div className="px-4">
+    <main className="container flex flex-col h-full min-h-screen bg-slate-900">
+      <header className="container flex shrink-0 h-24 min-h-24 max-h-24 bg-white border-y-2 border-x-2 border-collapse border-black justify-center">
+        <div className="relative flex flex-row grow justify-center bg-white">
+          <div className="flex grow bg-slate-400 blur-md "></div>
+          <p className="font-creepster text-[50px] text-gray-100 text-center absolute top-1/2 left-1/2 transform: -translate-x-1/2 -translate-y-1/2  z-10">
+            EL laboratorio de José
+          </p>
+        </div>
+      </header>
+      <main className="container grow flex flex-row justify-between">
+        <aside className="shrink flex flex-col justify-center align-middle  bg-slate-100 px-0 h-[535px] max-h-full border-l-2 border-r-0 border-x-2 border-collapse border-black">
+          <div className="flex flex-col w-full max-w-full grow px-8 font-banger">
+            <label htmlFor="estado">Estado:</label>
             <select
-              className="rounded font-bold"
-              value={estadoPersonaje}
-              onChange={(e) => setEstadoPersonaje(e.target.value)}
+              className="rounded font-bold text-sm"
+              value={parametrosJugador.estado}
+              onChange={onChangeJugador}
+              name="estado"
+              id="estado"
             >
-              {animacionSprites.map((animacion) => (
+              {/* {juego?.spritesJugador[0].frames.map((animacion) => (
                 <option key={animacion.nombre} value={animacion.nombre}>
                   {animacion.nombre}
                 </option>
-              ))}
+              ))} */}
             </select>
+            <label htmlFor="FPS">FPS:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="120"
+              value={parametrosJuego.FPS}
+              name="FPS"
+              id="FPS"
+              onChange={onChangeJuego}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJuego.FPS}
+              readOnly
+            />
+            <label htmlFor="escena">Escena:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="1"
+              max="2"
+              value="1"
+              name="escena"
+              id="escena"
+              readOnly
+            />
+            <input type="text" className="text-sm" value="1" readOnly />
+            {/* <label htmlFor="Velocidad">Velocidad:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={velocidadJuego}
+              name="Velocidad"
+              id="Velocidad"
+              onChange={(e) =>
+                setVelocidadJuego(Number.parseInt(e.target.value))
+              }
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={velocidadJuego}
+              readOnly
+            /> */}
+
+            <label htmlFor="peso">Peso:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="10"
+              value={parametrosJugador.peso}
+              name="peso"
+              id="peso"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.peso}
+              readOnly
+            />
+
+            <label htmlFor="caidaGolpe">Caida Golpe:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.caidaGolpe}
+              name="caidaGolpe"
+              id="caidaGolpe"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.caidaGolpe}
+              readOnly
+            />
+            <label htmlFor="framesLimite">Frames Limite:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="10"
+              value={parametrosJugador.framesLimite}
+              name="framesLimite"
+              id="framesLimite"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.framesLimite}
+              readOnly
+            />
           </div>
         </aside>
-        <main className="flex grow bg-white">
-          <canvas id="lienzo" className="bg-white" ref={canvas}></canvas>
+        <main className="flex flex-1 flex-row justify-center bg-stone-100 shrink">
+          <div className="relative flex flex-row w-full bg-black border-x-2 border-collapse border-black">
+            <canvas
+              id="lienzo"
+              className="absolute top-0 left-0 w-full h-[720px] max-w-full max-h-full flex bg-slate-500  "
+              ref={canvas}
+            ></canvas>
+            <canvas
+              id="lienzoColision"
+              className="absolute top-0 left-0 w-full h-[720px] max-w-full max-h-full flex opacity-0"
+              ref={canvasColision}
+            ></canvas>
+            <canvas
+              id="lienzoDebug"
+              className="absolute top-0 left-0 w-full h-[720px] max-w-full max-h-full flex"
+              ref={canvasDebug}
+            ></canvas>
+          </div>
         </main>
+        <aside className="shrink flex flex-col justify-center align-middle  bg-slate-100 px-2 h-[535px] max-h-full border-l-0 border-r-2 border-x-2 border-collapse border-black">
+          <div className="flex flex-col w-full max-w-full grow px-8 font-banger">
+            <label htmlFor="velocidadX" className="">
+              VelocidadX:
+            </label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.velocidadX}
+              name="velocidadX"
+              id="velocidadX"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.velocidadX}
+              readOnly
+            />
+            <label htmlFor="velocidadY">VelocidadY:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.velocidadY}
+              name="velocidadY"
+              id="velocidadY"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.velocidadY}
+              readOnly
+            />
+            <label htmlFor="velocidadRX">VelocidadRX:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.velocidadRX}
+              name="velocidadRX"
+              id="velocidadRX"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.velocidadRX}
+              readOnly
+            />
+            <label htmlFor="velocidadFC">velocidadFC:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.velocidadFC}
+              name="velocidadFC"
+              id="velocidadFC"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.velocidadFC}
+              readOnly
+            />
+            <label htmlFor="velocidadFR">VelocidadFR:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.velocidadFR}
+              name="velocidadFR"
+              id="velocidadFR"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.velocidadFR}
+              readOnly
+            />
+            <label htmlFor="velocidadFG">VelocidadFG:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.velocidadFG}
+              name="velocidadFG"
+              id="velocidadFG"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.velocidadFG}
+              readOnly
+            />
+
+            <label htmlFor="velocidadFS">VelocidadFS:</label>
+            <input
+              type="range"
+              className="text-sm"
+              min="0"
+              max="50"
+              value={parametrosJugador.velocidadFS}
+              name="velocidadFS"
+              id="velocidadFS"
+              onChange={onChangeJugador}
+            ></input>
+            <input
+              type="text"
+              className="text-sm"
+              value={parametrosJugador.velocidadFS}
+              readOnly
+            />
+          </div>
+        </aside>
       </main>
-      <footer className="container flex h-16 min-h-16 bg-emerald-800"></footer>
+
+      <footer className="container flex shrink-0 h-16 min-h-16 max-h-16 bg-slate-100 border-y-2 border-x-2 border-collapse border-black"></footer>
     </main>
   );
 }
@@ -147,3 +535,10 @@ function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
 
   return needResize;
 }
+
+const obtenerTamVentana = () => {
+  const { innerWidth, innerHeight } = window;
+  const ancho = innerWidth;
+  const alto = innerHeight;
+  return { ancho, alto };
+};

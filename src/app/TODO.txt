@@ -1,0 +1,3 @@
+1. Hacer dos BOSS: 1.Zombie Gigante: Saltar 2. Araña
+2. Hacer dos Niveles: 3 subniveles de dificultad
+3. modificar tiempo, aumentar barra de energía, puntaje de ganar
