@@ -1,94 +1,217 @@
 "use client";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
-import { TParametrosJuego, TParametrosJugador } from "./juego";
+import { Juego, TParametrosJuego, TParametrosJugador } from "./juego";
 import { Tecla } from "./inputHanlder";
-import { useJuego } from "./hooks/useJuego";
 
 export type TDimensiones = {
   ancho: number;
   alto: number;
 };
 
-const parametrosJugadorIni: TParametrosJugador = {
-  estado: "",
-  velocidadX: 10,
-  velocidadY: 30,
-  velocidadRX: 15,
-  caidaGolpe: 35,
-  velocidadFS: 10,
-  velocidadFC: 10,
-  velocidadFR: 10,
-  velocidadFG: 10,
-  peso: 2,
-  framesLimite: 1,
-};
-
-const parametrosJuegoIni: TParametrosJuego = {
-  FPS: 30,
-  velocidadJuego: 0,
-};
-
 export default function Home() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const canvasColision = useRef<HTMLCanvasElement>(null);
   const canvasDebug = useRef<HTMLCanvasElement>(null);
-  const [juego, setJuego, setCanvas, iniciarJuego] = useJuego(
-    parametrosJuegoIni,
-    parametrosJugadorIni
-  );
-
   const [dimensiones, setDimensiones] = useState<TDimensiones>({
     ancho: 0,
     alto: 0,
   });
 
+  const [juego, setJuego] = useState<Juego | null>(null);
   const [parametrosJuego, setParametrosJuego] = useState<TParametrosJuego>({
-    ...parametrosJuegoIni,
+    FPS: 30,
+    velocidadJuego: 0,
   });
   const [parametrosJugador, setParametrosJugador] =
-    useState<TParametrosJugador>({ ...parametrosJugadorIni });
+    useState<TParametrosJugador>({
+      estado: "",
+      velocidadX: 10,
+      velocidadY: 30,
+      velocidadRX: 15,
+      caidaGolpe: 35,
+      velocidadFS: 10,
+      velocidadFC: 10,
+      velocidadFR: 10,
+      velocidadFG: 10,
+      peso: 2,
+      framesLimite: 1,
+    });
+
+  const Id = useRef<number>(0);
+
+  useEffect(() => {
+    const redimensionarVentana = () => {
+      if (canvas.current && canvasColision.current && canvasDebug.current) {
+        resizeCanvasToDisplaySize(canvas.current);
+        resizeCanvasToDisplaySize(canvasColision.current);
+        resizeCanvasToDisplaySize(canvasDebug.current);
+      }
+    };
+
+    redimensionarVentana();
+
+    return () => {};
+  }, []);
+
+  useEffect(() => {
+    if (canvas.current && canvasDebug.current && canvasColision.current) {
+      const ctx: CanvasRenderingContext2D | null =
+        canvas.current.getContext("2d");
+      const ctxColision: CanvasRenderingContext2D | null =
+        canvasColision.current.getContext("2d", {
+          willReadFrequently: true,
+        });
+      const ctxDebug: CanvasRenderingContext2D | null =
+        canvasDebug.current.getContext("2d");
+
+      if (ctx && ctxDebug && ctxColision) {
+        setJuego(
+          new Juego(
+            ctx,
+            ctxDebug,
+            ctxColision,
+            canvas.current.width,
+            canvas.current.height,
+            { ...parametrosJuego },
+            { ...parametrosJugador },
+            [5, 6, 4, 10, 6],
+            canvas.current.getBoundingClientRect()
+          )
+        );
+      }
+    }
+    return () => {};
+  }, []);
 
   const reiniciar = (e: KeyboardEvent) => {
-    if (e.key === Tecla.REINICIAR) {
+    if (e.key === Tecla.REINICIAR && juego?.gameOver) {
+      setJuego((prevState) => {
+        if (prevState) {
+          return new Juego(
+            prevState.ctx,
+            prevState.ctxDebug,
+            prevState.ctxColision,
+            prevState.ancho,
+            prevState.alto,
+            { ...prevState.parametrosJuego },
+            { ...prevState.parametrosJugador },
+            prevState.maxEnemigos,
+            prevState.posicionCanvas
+          );
+        }
+        return prevState;
+      });
+
       console.log("REINICIO");
-      iniciarJuego(parametrosJuego, parametrosJugador);
     }
   };
 
   useEffect(() => {
-    if (canvas.current && canvasColision.current && canvasDebug.current) {
-      redimensionarCanvas([
-        canvas.current,
-        canvasColision.current,
-        canvasDebug.current,
-      ]);
+    console.log("Entra Renderizado");
 
-      setCanvas([
-        ...[canvas.current, canvasColision.current, canvasDebug.current],
-      ]);
-    }
-  }, []);
+    if (juego && !juego?.gameOver) {
+      juego.limpiar();
+      setParametrosJuego({ ...juego.parametrosJuego });
+      setParametrosJugador({ ...juego.parametrosJugador });
+      window.addEventListener("keydown", juego.entrada.capturarEntrada);
+      window.addEventListener("keyup", juego.entrada.capturarSalida);
+      window.addEventListener("click", juego.crearClickCuervo);
+      window.addEventListener("keydown", reiniciar);
 
-  useEffect(() => {
-    window.addEventListener("keydown", reiniciar);
-    return () => {
-      window.removeEventListener("keydown", reiniciar);
-    };
-  });
+      let ultimoTiempo: number = 0;
+      const animacion = (tiempo: number) => {
+        // const ahora = window.performance.now();
+        // const deltaTiempo = ahora - ultimoTiempo;
+        // console.log("t " + tiempo);
+        const deltaTiempo = tiempo - ultimoTiempo;
+        //console.log("delta: " + deltaTiempo);
 
-  useEffect(() => {
-    if (juego && !juego.gameOver) {
-      setJuego((prevState) => {
-        if (prevState) {
-          prevState.parametrosJugador = { ...parametrosJugador };
-          prevState.parametrosJuego = { ...parametrosJuego };
-          prevState.actualizarFramesLimite();
-          prevState.actualizarIntervalo();
+        ultimoTiempo = tiempo;
+        // if (deltaTiempo < juego.intervalo) return;
+        juego.renderizar(deltaTiempo, false);
+
+        if (!juego.gameOver) {
+          Id.current = requestAnimationFrame(animacion);
         }
-        return prevState;
-      });
+      };
+
+      console.log("Inicio Animación. Rederizando.");
+      animacion(0);
     }
-  }, [parametrosJuego, parametrosJugador]);
+
+    return () => {
+      if (juego?.gameOver) {
+        if (Id.current) cancelAnimationFrame(Id.current);
+        console.log("Id " + Id.current);
+        window.removeEventListener("keydown", juego.entrada.capturarEntrada);
+        window.removeEventListener("keyup", juego.entrada.capturarSalida);
+        window.removeEventListener("click", juego.crearClickCuervo);
+        window.removeEventListener("keydown", reiniciar);
+      }
+    };
+  }, [juego]);
+
+  const compararParametros = (
+    parametros: TParametrosJuego | TParametrosJugador,
+    parametrosComparacion: TParametrosJuego | TParametrosJugador
+  ) => {
+    for (const parametro of Object.keys(parametros)) {
+      if (parametrosComparacion[parametro] != parametros[parametro]) {
+        return true;
+      }
+      return false;
+    }
+  };
+
+  // parametrosJugador.peso != juego.parametrosJugador.peso ||
+  //       parametrosJugador.framesLimite !=
+  //         juego.parametrosJugador.framesLimite ||
+  //       parametrosJugador.velocidadX != juego.parametrosJugador.velocidadX ||
+  //       parametrosJugador.velocidadY != juego.parametrosJugador.velocidadY ||
+  //       parametrosJugador.velocidadRX != juego.parametrosJugador.velocidadRX ||
+  //       parametrosJugador.velocidadFS != juego.parametrosJugador.velocidadFS ||
+  //       parametrosJugador.velocidadFC != juego.parametrosJugador.velocidadFC ||
+  //       parametrosJugador.velocidadFR != juego.parametrosJugador.velocidadFR ||
+  //       parametrosJugador.velocidadFG != juego.parametrosJugador.velocidadFG ||
+  //       parametrosJugador.caidaGolpe != juego.parametrosJugador.caidaGolpe
+
+  useEffect(() => {
+    console.log("Entra a Propiedades Jugador.");
+    if (juego) {
+      if (compararParametros(parametrosJugador, juego.parametrosJugador)) {
+        setJuego((prevState) => {
+          if (prevState) {
+            prevState.parametrosJugador = { ...parametrosJugador };
+            if (prevState.jugador) {
+              prevState.jugador.peso = juego.parametrosJugador.peso;
+              prevState.jugador.framesLimite =
+                juego.parametrosJugador.framesLimite;
+            }
+          }
+          return prevState;
+        });
+        console.log("Jugador Modificado: ");
+        console.log(juego);
+      }
+    }
+  }, [parametrosJugador]);
+
+  useEffect(() => {
+    console.log("Entra a Propiedades Juego.");
+    if (juego) {
+      if (compararParametros(parametrosJuego, juego.parametrosJuego)) {
+        setJuego((prevState) => {
+          if (prevState) {
+            prevState.parametrosJuego = { ...parametrosJuego };
+            prevState.actualizarIntervalo();
+          }
+          return prevState;
+        });
+        console.log("Juego Modificado: ");
+        console.log(juego);
+      }
+    }
+  }, [parametrosJuego]);
 
   const onChangeJugador = (
     e: ChangeEvent<HTMLSelectElement | HTMLInputElement>
@@ -391,12 +514,6 @@ export default function Home() {
     </main>
   );
 }
-
-const redimensionarCanvas = (canvas: Array<HTMLCanvasElement>) => {
-  canvas.forEach((lienzo) => {
-    resizeCanvasToDisplaySize(lienzo);
-  });
-};
 
 function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
   // Lookup the size the browser is displaying the canvas in CSS pixels.

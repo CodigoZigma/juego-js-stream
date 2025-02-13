@@ -43,7 +43,7 @@ export class Juego {
   intervalo: number;
   contaFrames: number;
   debug: boolean = false;
-  jugador: Jugador | null = null;
+  jugador: Jugador;
   fondosJuego: FondoJuego[] = [];
   alturaPiso: number = 0;
   murcielagoA: Murcielagoa[] = [];
@@ -144,6 +144,7 @@ export class Juego {
     this.colorFuente = "black";
 
     this.entrada = new ManejadorEntrada(this);
+    this.agregarEventos();
 
     this.alturaPiso = 120;
     this.temporizador = 0;
@@ -165,7 +166,7 @@ export class Juego {
 
     this.crearFondos();
 
-    this.crearJugador();
+    this.jugador = this.crearJugador();
   }
 
   crearFondos() {
@@ -188,7 +189,7 @@ export class Juego {
 
   crearJugador() {
     const sprite = { ...this.spritesJugador[0] };
-    this.jugador = new Jugador(
+    return new Jugador(
       this,
       sprite.x,
       sprite.y,
@@ -451,8 +452,12 @@ export class Juego {
     this.intervalo = 1000 / this.parametrosJuego.FPS || 0;
   }
 
+  actualizarFramesLimite() {
+    this.jugador.framesLimite = this.parametrosJugador.framesLimite;
+  }
+
   renderizar(deltaTiempo: number, debug: boolean = false) {
-    console.log("Delta Render:" + deltaTiempo);
+    //console.log("Delta Render:" + deltaTiempo);
     //return;
     if (deltaTiempo < this.intervalo) this.temporizador += deltaTiempo;
     // console.log(
@@ -466,9 +471,9 @@ export class Juego {
       this.eliminarObjetosJuego();
       this.contaFrames++;
       this.tiempo += this.temporizador;
-      // console.log(" Tiempo " + this.tiempo);
-      console.log("Tiempo Frame: " + this.temporizador);
-      console.log("Cuenta Frames: " + this.contaFrames);
+      //console.log(" Tiempo " + this.tiempo);
+      //console.log("Tiempo Frame: " + this.temporizador);
+      //console.log("Cuenta Frames: " + this.contaFrames);
       this.temporizador = 0;
       if (this.contaFrames % this.parametrosJuego.FPS == 0) this.reloj++;
       if (this.reloj >= this.tiempoMaximo || this.vidas <= 0) {
@@ -478,8 +483,21 @@ export class Juego {
         this.tiempo = 0;
         this.contaFrames = 0;
         this.ui.dibujarGameOver(this.ctx);
+        this.removerEventos();
       }
     }
+  }
+
+  agregarEventos() {
+    window.addEventListener("keydown", this.entrada.capturarEntrada);
+    window.addEventListener("keyup", this.entrada.capturarSalida);
+    window.addEventListener("click", this.crearClickCuervo);
+  }
+
+  removerEventos() {
+    window.removeEventListener("keydown", this.entrada.capturarEntrada);
+    window.removeEventListener("keyup", this.entrada.capturarSalida);
+    window.removeEventListener("click", this.crearClickCuervo);
   }
 
   public static colisionCirculos(

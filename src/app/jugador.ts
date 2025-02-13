@@ -335,7 +335,7 @@ export class Jugador extends ObjetoJuego {
 
     this.y += this.velocidadY;
     if (!this.estaEnSuelo()) {
-      this.velocidadY += this.peso;
+      this.velocidadY += this.juego.parametrosJugador.peso;
     } else {
       this.velocidadY = 0;
     }
