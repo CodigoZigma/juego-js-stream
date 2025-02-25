@@ -25,17 +25,13 @@ const parametrosJugadorIni: TParametrosJugador = {
 
 const parametrosJuegoIni: TParametrosJuego = {
   FPS: 30,
-  velocidadJuego: 0,
+  velocidadJuego: 5,
 };
 
 export default function Home() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const canvasColision = useRef<HTMLCanvasElement>(null);
   const canvasDebug = useRef<HTMLCanvasElement>(null);
-  const [juego, setJuego, setCanvas, iniciarJuego] = useJuego(
-    parametrosJuegoIni,
-    parametrosJugadorIni
-  );
 
   const [dimensiones, setDimensiones] = useState<TDimensiones>({
     ancho: 0,
@@ -48,12 +44,10 @@ export default function Home() {
   const [parametrosJugador, setParametrosJugador] =
     useState<TParametrosJugador>({ ...parametrosJugadorIni });
 
-  const reiniciar = (e: KeyboardEvent) => {
-    if (e.key === Tecla.REINICIAR) {
-      console.log("REINICIO");
-      iniciarJuego(parametrosJuego, parametrosJugador);
-    }
-  };
+  const [juego, setJuego, setCanvas, iniciarJuego] = useJuego(
+    parametrosJuego,
+    parametrosJugador
+  );
 
   useEffect(() => {
     if (canvas.current && canvasColision.current && canvasDebug.current) {
@@ -63,12 +57,19 @@ export default function Home() {
         canvasDebug.current,
       ]);
 
+      console.log("INICIO");
       setCanvas([
         ...[canvas.current, canvasColision.current, canvasDebug.current],
       ]);
     }
   }, []);
 
+  const reiniciar = (e: KeyboardEvent) => {
+    if (e.key === Tecla.REINICIAR) {
+      console.log("REINICIO");
+      iniciarJuego();
+    }
+  };
   useEffect(() => {
     window.addEventListener("keydown", reiniciar);
     return () => {
@@ -78,14 +79,14 @@ export default function Home() {
 
   useEffect(() => {
     if (juego && !juego.gameOver) {
-      setJuego((prevState) => {
-        if (prevState) {
-          prevState.parametrosJugador = { ...parametrosJugador };
-          prevState.parametrosJuego = { ...parametrosJuego };
-          prevState.actualizarFramesLimite();
-          prevState.actualizarIntervalo();
+      setJuego((juegoEnCurso) => {
+        if (juegoEnCurso) {
+          juegoEnCurso.parametrosJugador = { ...parametrosJugador };
+          juegoEnCurso.parametrosJuego = { ...parametrosJuego };
+          juegoEnCurso.actualizarFramesLimiteJugador();
+          juegoEnCurso.actualizarIntervalo();
         }
-        return prevState;
+        return juegoEnCurso;
       });
     }
   }, [parametrosJuego, parametrosJugador]);

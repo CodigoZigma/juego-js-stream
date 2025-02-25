@@ -40,7 +40,7 @@ export class Juego {
   alto: number;
   ancho: number;
   temporizador: number;
-  intervalo: number;
+  intervalo: number = 0;
   contaFrames: number;
   debug: boolean = false;
   jugador: Jugador;
@@ -102,25 +102,29 @@ export class Juego {
   };
 
   constructor(
-    ctx: CanvasRenderingContext2D,
-    ctxDebug: CanvasRenderingContext2D,
-    ctxColision: CanvasRenderingContext2D,
-    ancho: number,
-    alto: number,
+    canvas: Array<HTMLCanvasElement>,
     parametrosJuego: TParametrosJuego,
     parametrosJugador: TParametrosJugador,
-    maxEnemigos: number[],
-    poscionCanvas?: DOMRect | null
+    maxEnemigos: number[]
   ) {
-    this.ctx = ctx;
-    this.ctxDebug = ctxDebug;
-    this.ctxColision = ctxColision;
-    this.ancho = ancho ? ancho : 0;
-    this.alto = alto ? alto : 0;
+    const [canvasFondo, canvasColision, canvasDebug] = canvas;
+
+    this.ctx = canvasFondo.getContext("2d")!;
+
+    this.ctxColision = canvasColision.getContext("2d", {
+      willReadFrequently: true,
+    })!;
+
+    this.ctxDebug = canvasDebug.getContext("2d")!;
+
+    this.ancho = canvasFondo.width;
+    this.alto = canvasFondo.height;
+
     this.parametrosJuego = { ...parametrosJuego };
     this.parametrosJugador = { ...parametrosJugador };
-    this.maxEnemigos = [...maxEnemigos] || [0, 0, 0, 0];
-    this.posicionCanvas = poscionCanvas ? poscionCanvas : null;
+    this.maxEnemigos = [...maxEnemigos];
+    this.posicionCanvas = canvasFondo.getBoundingClientRect();
+    this.actualizarIntervalo(); //
 
     [
       this.spritesFondos,
@@ -130,14 +134,14 @@ export class Juego {
       this.spritesVidas,
     ] = crearSprites(this);
 
-    const sprite = { ...this.spritesVidas[0] };
+    const spriteVidas = { ...this.spritesVidas[0] };
     const vida = document.createElement("img");
-    vida.src = sprite.nombre;
+    vida.src = spriteVidas.nombre;
     this.vida = {
       img: vida,
-      ancho: sprite.ancho,
-      alto: sprite.alto,
-      proporcion: sprite.proporcion,
+      ancho: spriteVidas.ancho,
+      alto: spriteVidas.alto,
+      proporcion: spriteVidas.proporcion,
     };
 
     this.gameOver = false;
@@ -149,12 +153,11 @@ export class Juego {
     this.alturaPiso = 120;
     this.temporizador = 0;
 
-    this.intervalo = 1000 / this.parametrosJuego.FPS || 0;
     this.contaFrames = 0;
     this.tiempo = 0;
     this.timer = 0;
     this.reloj = 0;
-    this.tiempoMaximo = 10;
+    this.tiempoMaximo = 30;
     this.intervaloCuervos = 500;
     this.tiempoProximoCuervo = 0;
     this.tiempoProximoEnemigo = 0;
@@ -450,35 +453,35 @@ export class Juego {
 
   actualizarIntervalo() {
     this.intervalo = 1000 / this.parametrosJuego.FPS || 0;
+    this.intervalo = Math.round((this.intervalo + Number.EPSILON) * 100) / 100;
+    //console.log(this.intervalo);
   }
 
-  actualizarFramesLimite() {
+  actualizarFramesLimiteJugador(): void {
     this.jugador.framesLimite = this.parametrosJugador.framesLimite;
   }
 
   renderizar(deltaTiempo: number, debug: boolean = false) {
-    //console.log("Delta Render:" + deltaTiempo);
-    //return;
+    //console.log(deltaTiempo);
     if (deltaTiempo < this.intervalo) this.temporizador += deltaTiempo;
-    // console.log(
-    //   Math.trunc(this.temporizador) + " " + Math.trunc(this.intervalo)
-    // );
 
-    if (this.temporizador >= this.intervalo - 1 && !this.gameOver) {
+    //console.log("Tiempo Frame: " + this.temporizador);
+    if (this.temporizador >= this.intervalo && !this.gameOver) {
       this.limpiar();
       this.actualizar(this.temporizador);
       this.dibujar();
       this.eliminarObjetosJuego();
       this.contaFrames++;
+      this.temporizador = this.intervalo;
       this.tiempo += this.temporizador;
       //console.log(" Tiempo " + this.tiempo);
-      //console.log("Tiempo Frame: " + this.temporizador);
-      //console.log("Cuenta Frames: " + this.contaFrames);
+      console.log("Cuenta Frames: " + this.contaFrames);
+      //console.log("Reloj: " + this.reloj);
       this.temporizador = 0;
       if (this.contaFrames % this.parametrosJuego.FPS == 0) this.reloj++;
       if (this.reloj >= this.tiempoMaximo || this.vidas <= 0) {
-        console.log("Reloj: " + this.reloj);
-        console.log("Tiempo total: " + this.tiempo);
+        //console.log("Reloj: " + this.reloj);
+        //console.log("Tiempo total: " + this.tiempo);
         this.gameOver = true;
         this.tiempo = 0;
         this.contaFrames = 0;

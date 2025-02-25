@@ -7,10 +7,7 @@ type Props = [
   juego: Juego | null,
   setJuego: React.Dispatch<React.SetStateAction<Juego | null>>,
   setCanvas: React.Dispatch<React.SetStateAction<Array<HTMLCanvasElement>>>,
-  iniciarJuego: (
-    parametrosJuego: TParametrosJuego,
-    parametrosJugador: TParametrosJugador
-  ) => void
+  iniciarJuego: () => void
 ];
 export const useJuego = (
   parametrosJuego: TParametrosJuego,
@@ -21,7 +18,7 @@ export const useJuego = (
   const Id = useRef<number>(0);
 
   useEffect(() => {
-    if (canvas.length != 0) iniciarJuego(parametrosJuego, parametrosJugador);
+    if (canvas.length != 0) iniciarJuego();
   }, [canvas]);
 
   useEffect(() => {
@@ -31,11 +28,13 @@ export const useJuego = (
         // const ahora = window.performance.now();
         // const deltaTiempo = ahora - ultimoTiempo;
         // console.log("t " + tiempo);
-        const deltaTiempo = tiempo - ultimoTiempo;
+        const deltaTiempo =
+          Math.round((tiempo - ultimoTiempo + Number.EPSILON) * 100) / 100;
         //console.log("delta: " + deltaTiempo);
 
         ultimoTiempo = tiempo;
         // if (deltaTiempo < juego.intervalo) return;
+
         juego?.renderizar(deltaTiempo, false);
 
         if (!juego?.gameOver) {
@@ -51,47 +50,15 @@ export const useJuego = (
     };
   }, [juego]);
 
-  const iniciarJuego = (
-    parametrosJuego: TParametrosJuego,
-    parametrosJugador: TParametrosJugador
-  ) => {
-    setJuego(crearJuego(parametrosJuego, parametrosJugador));
-  };
-
-  const crearJuego = (
-    parametrosJuego: TParametrosJuego,
-    parametrosJugador: TParametrosJugador
-  ) => {
-    const [canvasFondo, canvasColision, canvasDebug] = canvas;
-    const ctxFondo: CanvasRenderingContext2D | null =
-      canvasFondo.getContext("2d");
-
-    const ctxColision: CanvasRenderingContext2D | null =
-      canvasColision.getContext("2d", {
-        willReadFrequently: true,
-      });
-
-    const ctxDebug: CanvasRenderingContext2D | null =
-      canvasDebug.getContext("2d");
-
-    const ancho = canvasFondo.width;
-    const alto = canvasFondo.height;
-
-    if (ctxFondo && ctxColision && ctxDebug) {
-      return new Juego(
-        ctxFondo,
-        ctxDebug,
-        ctxColision,
-        ancho,
-        alto,
+  const iniciarJuego = () => {
+    setJuego(
+      new Juego(
+        canvas,
         { ...parametrosJuego },
         { ...parametrosJugador },
-        [5, 6, 4, 10, 6],
-        canvasFondo.getBoundingClientRect()
-      );
-    }
-
-    throw new Error("no se pudo crear el contexto");
+        [5, 6, 4, 10, 6]
+      )
+    );
   };
 
   return [juego, setJuego, setCanvas, iniciarJuego];
